@@ -1,0 +1,159 @@
+rules_version = '2';
+
+// StoryClub HARDENED rules — for SERVER-AUTHORITATIVE mode only.
+// --------------------------------------------------------------------------
+// Publish these *instead of* the root firestore.rules ONLY after you have:
+//   1. deployed the Cloud Functions in functions/ (firebase deploy --only
+//      functions), and
+//   2. flipped `useFunctions` to true in js/firebase.js and redeployed the site.
+//
+// They are the member-locked rules PLUS: clients may no longer write the
+// shared round/turn/reset state directly — those writes now go through the
+// callable functions (Admin SDK, which bypasses these rules). Concretely,
+// clients may still: read their club, add/remove their own wheel films, write
+// their OWN rating, write their OWN member record, and join. Everything else
+// (currentFilm, currentSpinnerIndex, lastSpin, resetRequest, a film's
+// status/watchedBy/watchedAt) is function-only.
+//
+// If you publish these WITHOUT the functions + flag, spinning, marking
+// watched, finishing a round, and resetting will all fail. TEST IN THE
+// EMULATOR first.
+// --------------------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isMember(code) {
+      return signedIn()
+        && request.auth.uid in
+           get(/databases/$(database)/documents/groups/$(code)).data.get('memberUids', []);
+    }
+    function validRating() {
+      return request.resource.data.score is number
+        && request.resource.data.score >= 0.5
+        && request.resource.data.score <= 5
+        && (!('review' in request.resource.data)
+            || request.resource.data.review.size() <= 2000);
+    }
+    // Pins a rating/comment's denormalised memberId to a member doc owned by the
+    // caller's uid, so a member can't author one under another member's
+    // memberId/name and impersonate them. (See root firestore.rules for detail.)
+    function ownsMember(code) {
+      return request.resource.data.memberId is string
+        && get(/databases/$(database)/documents/groups/$(code)/members/$(request.resource.data.memberId))
+             .data.get('uid', '') == request.auth.uid;
+    }
+
+    match /groups/{code} {
+      function existingUids() {
+        return resource.data.get('memberUids', []);
+      }
+      function amMember() {
+        return signedIn() && request.auth.uid in existingUids();
+      }
+      function changedKeys() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+      function existingOrder() {
+        return resource.data.get('memberOrder', []);
+      }
+      function amJoining() {
+        return signedIn()
+          && !(request.auth.uid in existingUids())
+          && !(request.auth.uid in resource.data.get('bannedUids', []))
+          && request.auth.uid in request.resource.data.memberUids
+          && request.resource.data.memberUids.hasAll(existingUids())
+          && request.resource.data.memberUids.size() == existingUids().size() + 1
+          && request.resource.data.get('memberOrder', []).hasAll(existingOrder())
+          && request.resource.data.get('memberOrder', []).size() <= existingOrder().size() + 1
+          && changedKeys().hasOnly(['memberOrder', 'memberUids']);
+      }
+
+      allow get:    if signedIn();
+      allow list:   if false;
+      allow create: if signedIn()
+                    && request.resource.data.memberUids.hasOnly([request.auth.uid])
+                    && request.resource.data.memberUids.size() == 1
+                    && (!('name' in request.resource.data)
+                        || request.resource.data.name.size() <= 200);
+      // Members may rename the club and flip the low-stakes wheel display
+      // toggles (streamFilter / wheelCapped); joining may only append a uid.
+      // currentFilm / currentSpinnerIndex / lastSpin / resetRequest are
+      // written exclusively by the Cloud Functions.
+      allow update: if amJoining()
+                    || (amMember()
+                        && changedKeys().hasOnly(['name', 'streamFilter', 'wheelCapped'])
+                        && request.resource.data.get('streamFilter', false) is bool
+                        && request.resource.data.get('wheelCapped', false) is bool
+                        && (!('name' in request.resource.data)
+                            || request.resource.data.name.size() <= 200));
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read:   if isMember(code);
+        allow create: if signedIn()
+                      && request.resource.data.uid == request.auth.uid
+                      && (!('name' in request.resource.data)
+                          || request.resource.data.name.size() <= 200);
+        allow update: if signedIn()
+                      && request.resource.data.uid == request.auth.uid
+                      && (!('uid' in resource.data)
+                          || resource.data.uid == request.auth.uid)
+                      && (!('name' in request.resource.data)
+                          || request.resource.data.name.size() <= 200);
+        allow delete: if false;
+      }
+
+      match /movies/{movieId} {
+        allow read:   if isMember(code);
+        // Add a film to the wheel, or remove a not-yet-picked one. Status
+        // transitions (current/watched, watchedBy) are function-only.
+        allow create: if isMember(code)
+                      && request.resource.data.status == 'wheel'
+                      && (!('title' in request.resource.data)
+                          || request.resource.data.title.size() <= 300);
+        allow update: if false;
+        allow delete: if isMember(code);
+      }
+
+      match /ratings/{ratingId} {
+        allow read:   if isMember(code);
+        allow create: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && ownsMember(code)
+                      && ratingId == request.resource.data.movieId + '__' + request.resource.data.memberId
+                      && validRating();
+        allow update: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && (!('uid' in resource.data)
+                          || resource.data.uid == request.auth.uid)
+                      && ownsMember(code)
+                      && validRating();
+        // Deletes happen only via the reset function (Admin SDK).
+        allow delete: if false;
+      }
+
+      // Per-film discussion comments (added after the first cut of these rules).
+      // Members read; you may only create/update a comment carrying your own uid,
+      // and delete only your own. Independent of the functions.
+      match /comments/{commentId} {
+        allow read:   if isMember(code);
+        allow create: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && ownsMember(code)
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() <= 2000;
+        allow update: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && resource.data.uid == request.auth.uid
+                      && ownsMember(code)
+                      && (!('text' in request.resource.data)
+                          || request.resource.data.text.size() <= 2000);
+        allow delete: if isMember(code) && resource.data.uid == request.auth.uid;
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "StoryClub",
+  "short_name": "StoryClub",
+  "description": "A book club on a wheel — add books, spin to pick the next read, then rate and review.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2b2118",
+  "theme_color": "#2b2118",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

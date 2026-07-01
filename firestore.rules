@@ -1,0 +1,178 @@
+rules_version = '2';
+
+// StoryClub security rules — member-locked clubs.
+// --------------------------------------------------------------------------
+// Every browser signs in anonymously, so all access requires auth. Beyond
+// that, a club is private to the Firebase uids in its `memberUids` list:
+//   - GET a group doc: any signed-in user (needed to look one up by code in
+//     order to join, and for the live group listener). LIST is denied, so
+//     nobody can enumerate every club.
+//   - read/write a club's members, movies, ratings: members only.
+//   - JOIN: a non-member may update the group doc ONLY to append their own
+//     uid (and their memberId) — they can't touch anything else, and can't
+//     add anyone but themselves.
+//   - ratings: you may only create/update your OWN rating.
+//   - no client deletes of the group doc.
+//
+// STILL CLIENT-TRUSTED (to be moved server-side later — see ROADMAP #7/#8):
+//   - turn rotation / finalize / reset invariants (a member may write any
+//     group field), and a member could over-delete a club's movies/ratings.
+//   These are fine for a friendly club; they are not a hostile-actor guard.
+//
+// ROLLOUT: deploy the uid-recording client FIRST (so every member has a uid
+// in `memberUids`), have everyone re-join once, THEN publish these rules —
+// otherwise members without a recorded uid are locked out until they re-join.
+// TEST IN THE FIREBASE EMULATOR before publishing. These rules do NOT
+// auto-deploy: paste into Build -> Firestore Database -> Rules -> Publish.
+// --------------------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // A rating must carry a half-star score in range and a bounded review, so a
+    // member can't write a junk score or stuff an oversized review document.
+    function validRating() {
+      return request.resource.data.score is number
+        && request.resource.data.score >= 0.5
+        && request.resource.data.score <= 5
+        && (!('review' in request.resource.data)
+            || request.resource.data.review.size() <= 2000);
+    }
+
+    // Is the caller a recorded member of group `code`? (default [] so groups
+    // created before memberUids existed don't error — nobody is a member of
+    // them until someone re-joins and records a uid.)
+    function isMember(code) {
+      return signedIn()
+        && request.auth.uid in
+           get(/databases/$(database)/documents/groups/$(code)).data.get('memberUids', []);
+    }
+
+    // Does the doc's `memberId` point at a member record owned by the caller?
+    // Ratings and comments carry a denormalised memberId + name; without this a
+    // member could write their own uid but ANOTHER member's memberId/name and
+    // impersonate them in the revealed reviews/comments (and skew stats). Pins
+    // the author to a member doc whose uid is the caller's. (Residual: a member
+    // can still create extra member docs under their own uid — sybil resistance
+    // needs a server-side join; see ROADMAP SH-3.)
+    function ownsMember(code) {
+      return request.resource.data.memberId is string
+        && get(/databases/$(database)/documents/groups/$(code)/members/$(request.resource.data.memberId))
+             .data.get('uid', '') == request.auth.uid;
+    }
+
+    match /groups/{code} {
+      function existingUids() {
+        return resource.data.get('memberUids', []);
+      }
+      function amMember() {
+        return signedIn() && request.auth.uid in existingUids();
+      }
+      function existingOrder() {
+        return resource.data.get('memberOrder', []);
+      }
+      // A non-member may update the group doc ONLY to append their own uid
+      // (and their memberId to the rotation) — exactly the join transaction.
+      // Banned uids can't rejoin, and the rotation is append-only here, so a
+      // joiner can't scramble or wipe the turn order while joining.
+      function amJoining() {
+        return signedIn()
+          && !(request.auth.uid in existingUids())
+          && !(request.auth.uid in resource.data.get('bannedUids', []))
+          && request.auth.uid in request.resource.data.memberUids
+          && request.resource.data.memberUids.hasAll(existingUids())
+          && request.resource.data.memberUids.size() == existingUids().size() + 1
+          && request.resource.data.get('memberOrder', []).hasAll(existingOrder())
+          && request.resource.data.get('memberOrder', []).size() <= existingOrder().size() + 1
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['memberOrder', 'memberUids']);
+      }
+
+      allow get:    if signedIn();          // look up by code (to join / sync)
+      allow list:   if false;               // never enumerate all clubs
+      allow create: if signedIn()
+                    && request.resource.data.memberUids.hasOnly([request.auth.uid])
+                    && request.resource.data.memberUids.size() == 1
+                    && (!('name' in request.resource.data)
+                        || request.resource.data.name.size() <= 200);
+      allow update: if amMember() || amJoining();
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read:   if isMember(code);
+        // Anyone signed-in may write their OWN member record — needed to join,
+        // before they're in memberUids. uid must be your own, and you can't
+        // overwrite a record that already belongs to a different uid.
+        allow create: if signedIn()
+                      && request.resource.data.uid == request.auth.uid
+                      && (!('name' in request.resource.data)
+                          || request.resource.data.name.size() <= 200);
+        allow update: if signedIn()
+                      && request.resource.data.uid == request.auth.uid
+                      && (!('uid' in resource.data)
+                          || resource.data.uid == request.auth.uid)
+                      && (!('name' in request.resource.data)
+                          || request.resource.data.name.size() <= 200);
+        // Members may delete member records — used by the admin "kick" (and the
+        // group reset). Client-trusted, like movie/rating deletes above.
+        allow delete: if isMember(code);
+      }
+
+      match /movies/{movieId} {
+        allow read:   if isMember(code);
+        allow create: if isMember(code)
+                      && request.resource.data.status == 'wheel'
+                      && (!('title' in request.resource.data)
+                          || request.resource.data.title.size() <= 300);
+        // Members run the round client-side (spin / watched-acks / finalize /
+        // vote-off), so field updates stay open — but a film's identity is
+        // immutable: nobody can rewrite another member's title or steal the
+        // "added by" credit. (Delete stays open: the adder's remove, vote-off,
+        // and the group reset all need it; full delete-protection needs Functions.)
+        allow update: if isMember(code)
+                      && request.resource.data.get('title', '') == resource.data.get('title', '')
+                      && request.resource.data.get('addedByMemberId', '') == resource.data.get('addedByMemberId', '')
+                      && request.resource.data.get('addedByName', '') == resource.data.get('addedByName', '');
+        allow delete: if isMember(code);
+      }
+
+      match /ratings/{ratingId} {
+        allow read:   if isMember(code);
+        allow create: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && ownsMember(code)
+                      && ratingId == request.resource.data.movieId + '__' + request.resource.data.memberId
+                      && validRating();
+        allow update: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && (!('uid' in resource.data)
+                          || resource.data.uid == request.auth.uid)
+                      && ownsMember(code)
+                      && validRating();
+        allow delete: if isMember(code);   // needed by the group reset
+      }
+
+      // Per-film discussion comments. Members read; you may only create/update a
+      // comment carrying your own uid, and delete only your own.
+      match /comments/{commentId} {
+        allow read:   if isMember(code);
+        allow create: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && ownsMember(code)
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() <= 2000;
+        allow update: if isMember(code)
+                      && request.resource.data.uid == request.auth.uid
+                      && resource.data.uid == request.auth.uid
+                      && ownsMember(code)
+                      && (!('text' in request.resource.data)
+                          || request.resource.data.text.size() <= 2000);
+        allow delete: if isMember(code) && resource.data.uid == request.auth.uid;
+      }
+    }
+  }
+}

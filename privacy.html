@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="a24">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Privacy — StoryClub</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&family=Pixelify+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html" style="text-decoration:none;color:inherit">StoryClub</a>
+  </header>
+  <main id="main">
+    <div class="card legal">
+      <h1>Privacy Policy</h1>
+      <p class="muted small">Last updated: 1 July 2026 · StoryClub is a free hobby project, supported by optional donations.</p>
+
+      <p>This page explains what information StoryClub handles and why. If anything here is unclear,
+        or you want your data removed, contact <b>your-contact@example.com</b>.</p>
+
+      <h2>Who runs StoryClub</h2>
+      <p>StoryClub is operated by <b>Lewis Fowler</b> ("we"), the data controller for the information
+        described below. Contact: <b>your-contact@example.com</b>.</p>
+
+      <h2>What we collect</h2>
+      <ul>
+        <li><b>A name you choose.</b> A display name you type in (a real name isn't required), plus a
+          random per-browser member ID so the app remembers you.</li>
+        <li><b>Your book-club activity.</b> Clubs you create or join, books you add, spin results,
+          whether you've marked a book read, your half-star ratings, your written reviews, and
+          discussion comments.</li>
+        <li><b>Sign-in identifiers.</b> An anonymous account ID (from Firebase) so the app can keep
+          your club private. If you choose "Save your account", your <b>email address</b>, used only to
+          send you a one-time sign-in link.</li>
+        <li><b>Stored only in your browser (not on our servers).</b> Your name, your last club code, and
+          your theme/sound preferences live in your browser's local storage.</li>
+      </ul>
+      <p>We do <b>not</b> collect your real name (unless you type it), payment details, or precise
+        location, and we do <b>not</b> use advertising or third-party analytics/tracking.</p>
+
+      <h2>Why we process it (lawful basis)</h2>
+      <p>To provide the app you asked to use — running your book club (performance of the service), and
+        our legitimate interest in operating and securing the app against abuse. Where you give an email
+        for account recovery, we rely on your consent.</p>
+
+      <h2>Where your data is stored</h2>
+      <ul>
+        <li><b>Google Firebase</b> (Cloud Firestore + Firebase Authentication) stores your club data on
+          Google's infrastructure; Google acts as our processor. See Google's Privacy Policy.</li>
+        <li>The site is hosted on <b>GitHub Pages</b>, which may log requests (e.g. your IP address) to
+          serve the page.</li>
+      </ul>
+
+      <h2>Third-party services your browser contacts</h2>
+      <ul>
+        <li><b>Google Firebase / Google Cloud</b> — database and anonymous sign-in.</li>
+        <li><b>Google reCAPTCHA</b> (via Firebase App Check) — verifies requests come from the real app
+          and blocks abuse. reCAPTCHA collects device and usage information under Google's Privacy Policy
+          and Terms.</li>
+        <li><b>Open Library</b> (a project of the Internet Archive) — book covers, descriptions and
+          details. Your browser requests these directly, so Open Library receives your IP address.</li>
+        <li><b>Google Fonts</b> and <b>jsDelivr</b> (a CDN) — load fonts and a small visual effect; they
+          may receive your IP address.</li>
+        <li><b>Ko-fi / Stripe</b> — only if you choose to support the project via the Support page. Any
+          payment is handled by Ko-fi (using Stripe) under their own privacy policies; we never receive
+          your card details.</li>
+      </ul>
+      <p>We do not sell your data or share it for advertising.</p>
+
+      <h2>Cookies and local storage</h2>
+      <p>StoryClub itself uses no tracking cookies — it stores a few preferences and your identity in your
+        browser's local storage. The third parties above (e.g. Google reCAPTCHA) may set their own
+        cookies. Clearing your browser storage removes the local data.</p>
+
+      <h2>Keeping and deleting your data</h2>
+      <ul>
+        <li>Leaving a club removes you from its member list. Resetting a club erases that club's books,
+          ratings, reviews and comments for everyone.</li>
+        <li>Because a club is shared, content you posted (such as a review) may stay visible to that club
+          until the club is reset.</li>
+        <li>To request deletion of your data or your account, email <b>your-contact@example.com</b> and we'll
+          remove it where we can.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>StoryClub isn't directed at children under <b>13</b>. Please don't
+        use it if you're under that age.</p>
+
+      <h2>Your rights</h2>
+      <p>Depending on where you live (for example under UK/EU GDPR), you may have the right to access,
+        correct, delete, or restrict use of your data, or to object to processing. Email
+        <b>your-contact@example.com</b> to exercise these.</p>
+      <p>You also have the right to lodge a complaint with a supervisory authority. In the UK that is
+        the <b>Information Commissioner's Office (ICO)</b>: <b>ico.org.uk/make-a-complaint</b> or
+        0303 123 1113.</p>
+
+      <h2>Changes</h2>
+      <p>We may update this policy; if we do, we'll change the "last updated" date above.</p>
+    </div>
+    <p class="center small muted legal-nav"><a href="index.html">Back to StoryClub</a> &middot; <a href="about.html">About</a> &middot; <a href="terms.html">Terms of Use</a></p>
+  </main>
+  <script type="module" src="js/theme.js"></script>
+</body>
+</html>

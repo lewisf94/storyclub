@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="a24">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Support StoryClub</title>
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml" />
+
+  <!-- ====================================================================
+       THE ONE PLACE TO MANAGE SUPPORT.
+       Point StoryClub's "Support" link at YOUR OWN stable URL (.../storyclub/support)
+       and set the real destination here. Swap tools any time (Ko-fi, Patreon,
+       Buy Me a Coffee, PayPal, Value4Value, etc.) by changing this one line —
+       every "go to /support" call-to-action you've ever made keeps working.
+       Leave it blank to show the friendly "coming soon" message below instead.
+       ==================================================================== -->
+  <script>
+    window.__SUPPORT_DEST = "https://ko-fi.com/thestoryclub";
+    if (window.__SUPPORT_DEST) location.replace(window.__SUPPORT_DEST);
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&family=Pixelify+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../" style="text-decoration:none;color:inherit">StoryClub</a>
+  </header>
+  <main id="main">
+    <div class="card legal" style="text-align:center">
+      <h1>Support StoryClub</h1>
+      <p id="sd-go" class="muted">Sending you to the support page…
+        <a id="sd-link" href="../">click here</a> if it doesn't load.</p>
+      <p id="sd-none" class="hidden">StoryClub is a free hobby project — a way to chip in is on its way.
+        Thanks for using it!</p>
+      <p class="small"><a href="../">Back to StoryClub</a></p>
+    </div>
+  </main>
+  <script>
+    (function () {
+      var dest = window.__SUPPORT_DEST || "";
+      if (dest) {
+        document.getElementById("sd-link").href = dest; // manual fallback if the auto-redirect was blocked
+      } else {
+        document.getElementById("sd-go").classList.add("hidden");
+        document.getElementById("sd-none").classList.remove("hidden");
+      }
+    })();
+  </script>
+  <script type="module" src="../js/theme.js"></script>
+</body>
+</html>
